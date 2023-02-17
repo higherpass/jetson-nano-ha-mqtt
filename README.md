@@ -14,14 +14,20 @@ An MQTT broker such as Mosquitto.  Currently the MQTT broker needs to allow anon
 
 ### Python Modules Used
 
-The jetson_stats and paho-mqtt packages are leveraged to provide the Jetson hardware and MQTT functionality.  These packages are installed by the Python module.  
+The jetson_stats and paho-mqtt packages are leveraged to provide the Jetson hardware and MQTT functionality.  The homeassistant-mqtt-binding package is used to create the Home Assistant devices and sensors.  OpenCV is used to render camera images.  These packages are installed by the Python module.  
 
 * [jetson_stats](https://github.com/rbonghi/jetson_stats)
 * [paho-mqtt](https://pypi.org/project/paho-mqtt/)
+* [homeassistant-mqtt-binding](https://gitlab.com/anphi/homeassistant-mqtt-binding)
+* [opencv-python](https://pypi.org/project/opencv-python/)
 
 ## Installation
 
 ### Python Module
+
+The python module should be installed in the environment where the [jetson-inference](https://github.com/dusty-nv/jetson-inference) libraries are installed.  The jetson-inference libraries are required to run the inferences.  
+
+It's easier to build the python package on the Jetson Nano host OS then copied into the Docker container and installed.
 
 ```bash
 git clone https://github.com/higherpass/jetson-nano-ha-mqtt.git
@@ -43,19 +49,23 @@ The Python module can be used to create a custom script to publish the Jetson ha
 ```python
 from JetsonNanoHaMqtt import JetsonNanoHaMqtt
 from jtop import jtop
-from paho.mqtt.client import Client
+
 import time
 
+from paho.mqtt.client import Client
+
 client = Client("testscript")
-client.connect("IP_ADDRESS_OR_HOSTNAME_HERE", MQTT_PORT_NUMBER_HERE)
+client.connect("192.168.220.113", 1883)
 client.loop_start()
 
 with jtop() as jetson:
     ha_jetson = JetsonNanoHaMqtt('Jetson Nano', client, jetson)
     ha_jetson.initialize_device(jetson)
-    ha_jetson.initialize_hardware_sensors()
+    ha_jetson.initialize_hardware_sensors() 
+    ha_jetson.initialize_camera(input="/dev/video0")
     while jetson.ok():
         ha_jetson.publish_hardware_sensors(jetson)
+        ha_jetson.publish_camera()
         time.sleep(5)
 ```
 

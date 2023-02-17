@@ -1,9 +1,9 @@
+import base64
 from enum import Enum
+import os
 import uuid
 from jtop import jtop
-
 import time
-
 from paho.mqtt.client import Client
 
 from HaMqtt.MQTTThermometer import MQTTThermometer
@@ -13,6 +13,10 @@ from HaMqtt.MQTTDevice import MQTTDevice
 from HaMqtt.MQTTSensor import MQTTSensor
 from .mqtt.MQTTCamera import MQTTCamera
 from .mqtt.MQTTText import MQTTText
+
+from jetson.inference import detectNet
+from jetson.utils import (videoSource, videoOutput, logUsage, saveImage,
+                          cudaAllocMapped, cudaCrop, cudaDeviceSynchronize)
 
 class JetsonNanoHaMqtt:
     '''
@@ -24,12 +28,12 @@ class JetsonNanoHaMqtt:
     _dev = None
     _jetson = None
     _client = None
+    _camera_input = None
+    _camera_output = None
     _name = 'Jetson Nano'
     _hw_sensors_enabled = False
     _camera_enabled = False
     _inference_enabled = False
-    _camera_input = None
-    _camera_output = None
     _detnet_inference_network = None
     _detnet_inference_threshold = 0.5
     _imgnet_inference_network = None
@@ -115,15 +119,20 @@ class JetsonNanoHaMqtt:
             self.pwr_avg.close()
             self._hw_sensors_enabled = False
 
-    def initialize_camera(self):
+    def initialize_camera(self, input: str = None):
         '''
         Initialize the camera
         
         This method initializes the Home Assistant MQTT sensors for the camera.
         '''
-        self.cam_motion = MQTTSensor("Jetson Camera Motion", "jetson_cam_motion", self._client, "mW", HaDeviceClass.POWER, unique_id=str(uuid.uuid4()), device_dict=self._dev)
-        self.camera = MQTTText("Jetson Camera", "jetson_cam", self._client, unique_id=str(uuid.uuid4()), device_dict=self._dev)
-        self._camera_enabled = True
+        if input is not None:
+            self._camera_input = videoSource(input)
+            self.cam_motion = MQTTSensor("Jetson Camera Motion", "jetson_cam_motion", self._client, "mW", HaDeviceClass.POWER, unique_id=str(uuid.uuid4()), device_dict=self._dev)
+            self.camera = MQTTCamera("Jetson Camera", "jetson_cam", self._client, unique_id=str(uuid.uuid4()), device_dict=self._dev)
+            self._camera_enabled = True
+            return True
+        else:
+            return False
     
     def close_camera(self):
         '''
@@ -187,3 +196,27 @@ class JetsonNanoHaMqtt:
         self.pwr_cur.publish_state(jetson.stats['power cur'])
         self.pwr_avg.publish_state(jetson.stats['power avg'])
 
+    def publish_camera(self):
+        '''
+        stream the camera snapshot to Home Assistant
+        
+        This method streams the camera and publishes the snapshot to Home Assistant.
+        '''
+        if self._camera_enabled:
+            # Capture an image
+            img = self._camera_input.Capture()
+            
+            roi = (0, 0, img.width, img.height)
+            snapshot = cudaAllocMapped(width=img.width, height=img.height, format=img.format)
+            cudaCrop(img, snapshot, roi)
+            cudaDeviceSynchronize()
+            # Save the image to a file in /dev/shm so we can read it back
+            # and publish.  Need to figure out how to publish directly from
+            # the GPU memory.
+            saveImage(os.path.join("/dev/shm/snapshot.jpg"), snapshot)
+            with open("/dev/shm/snapshot.jpg", "rb") as imageFile:
+                f = imageFile.read()
+                b = bytearray(f)
+                # Send the image over MQTT
+                self.camera.publish_image(f)
+            del snapshot

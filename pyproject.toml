@@ -2,7 +2,7 @@
 name = "jetson-nano-ha-mqtt"
 version = "0.0.1"
 authors = [
-  { name="higherpass", email="" },
+  { name="higherpass", email="fake@email.com" },
 ]
 description = "Home Assistant MQTT for Jetson Nano"
 readme = "README.md"
