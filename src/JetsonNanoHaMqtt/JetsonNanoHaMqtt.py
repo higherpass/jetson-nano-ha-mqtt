@@ -19,7 +19,7 @@ from HaMqtt.MQTTSensor import MQTTSensor
 from .mqtt.MQTTCamera import MQTTCamera
 from .mqtt.MQTTText import MQTTText
 
-from jetson.inference import detectNet
+from jetson.inference import detectNet, imageNet
 from jetson.utils import (videoSource, videoOutput, logUsage, cudaFromNumpy, 
                           cudaToNumpy, cudaAllocMapped, cudaCrop, 
                           cudaDeviceSynchronize)
@@ -64,6 +64,7 @@ class JetsonNanoHaMqtt:
     detnet = None
     detnet_camera = None
     imgnet = None
+    imgnet_camera = None
 
     def __init__(self, name: str, client: Client, jtop: jtop):
         self._client = client
@@ -312,6 +313,7 @@ class JetsonNanoHaMqtt:
         self.detnet_camera = MQTTCamera("Jetson Detection Inference Camera", "jetson_detnet_inference_cam", self._client, unique_id=str(uuid.uuid4()), device_dict=self._dev)
         self.imgnet = MQTTText("Jetson Image Inference", "jetson_imgnet_inference", self._client, unique_id=str(uuid.uuid4()), device_dict=self._dev)
         self._detnet_inference = detectNet("ssd-mobilenet-v2", threshold=0.5)
+        self._imgnet_inference = imageNet("googlenet")
         self._inference_enabled = True
 
     def close_inference(self):
@@ -324,6 +326,9 @@ class JetsonNanoHaMqtt:
             self.detnet.close()
             self.detnet_camera.close()
             self.imgnet.close()
+            self.imgnet_camera.close()
+            self.stop_inference_detnet()
+            self.stop_inference_imgnet()
             self._inference_enabled = False
         
     def publish_inference_detnet(self, client, userdata, msg):
@@ -369,4 +374,54 @@ class JetsonNanoHaMqtt:
         if self._inference_enabled:
             self._client.subscribe(self.detnet.cmd_topic)
             self._client.message_callback_add(self.detnet.cmd_topic, self.publish_inference_detnet)
+    
+    def stop_inference_detnet(self):
+        '''
+        Stop the inference for detnet
         
+        This method stops the detnet inference.
+        '''
+        if self._inference_enabled:
+            self._client.unsubscribe(self.detnet.cmd_topic)
+            self._client.message_callback_remove(self.detnet.cmd_topic)
+    
+    def publish_inference_imgnet(self, client, userdata, msg):
+        '''
+        Publish the inference for imgnet to Home Assistant
+        
+        This method publishes the imgnet inference to Home Assistant.
+        Executed when a message is received on the command topic.
+        '''
+        img_bytes = BytesIO(msg.payload)
+        img = Image.open(img_bytes)
+        cuda_img = cudaFromNumpy(asarray(img))
+        classID, confidence = self._imgnet_inference.Classify(cuda_img)
+        class_desc = self._imgnet_inference.GetClassDesc(classID)
+
+        # print the classification
+        print(class_desc)
+        self.imgnet.publish_state(class_desc)
+        del cuda_img
+        del img
+        del img_bytes
+    
+    def start_inference_imgnet(self):
+        '''
+        Start the inference for imgnet
+        
+        This method starts the imgnet inference.
+        '''
+        if self._inference_enabled:
+            self._client.subscribe(self.imgnet.cmd_topic)
+            self._client.message_callback_add(self.imgnet.cmd_topic, self.publish_inference_imgnet)
+    
+    def stop_inference_imgnet(self):
+        '''
+        Stop the inference for imgnet
+        
+        This method stops the imgnet inference.
+        '''
+        if self._inference_enabled:
+            self._client.unsubscribe(self.imgnet.cmd_topic)
+            self._client.message_callback_remove(self.imgnet.cmd_topic)
+

@@ -67,6 +67,7 @@ with jtop() as jetson:
     ha_jetson.start_camera()
     ha_jetson.initialize_inference()
     ha_jetson.start_inference_detnet()
+    ha_jetson.start_inference_imgnet()
 ```
 
 ## Home Assitant Devices and Sensors
@@ -106,12 +107,17 @@ Create a Home Assistant MQTT Camera device from a video input.
 
 ### Inferences
 
-Provide inference from images sent to the Jetson via MQTT.  The inference results are published to MQTT.
+Provide inference from images sent to the Jetson via MQTT.  The inference results are published to MQTT.  These leverage the [jetson-inference](https://github.com/dusty-nv/jetson-inference) libraries inference interfaces.
+
+The Jetson Detection Inference performs object detection on the image provided via MQTT.  The first detection is published to MQTT.  The Jetson Detection Inference Camera renders the image with the detection bounding box of all detections.
+
+The Jetson Image Inference performs image classification on the image provided via MQTT.  The classification is published to MQTT.
 
 |Name|Type|Details|
 |----|----|-------|
 |Jetson Detection Inference|MQTT Text|Detection inference class from Camera image|
 |Jetson Detection Inference Camera|MQTT Camera|Home Assistant MQTT Camera device with output from the Jetson inference detectnet libraries|
+|Jetson Image Inference|MQTT Text|Image inference class from image sent to MQTT command topic|
 
 
 ## TODO
@@ -120,13 +126,10 @@ Provide inference from images sent to the Jetson via MQTT.  The inference result
 * Add tests
 * Docker container
 * Add Inferences
-  * DetectNet
-  * ImageNet
   * SegNet
   * Each inference should have a MQTT camera to render the image
   * Each inference should have a MQTT text sensor to display the results
 * Add more sensors
-* Convert camera motion sensor away from a binary switch
 * Add a MQTT switch to enable/disable the camera
 * Add a MQTT switch to enable/disable the camera motion sensor
 * Add a MQTT switch to enable/disable the inferences
