@@ -17,7 +17,7 @@ class MQTTCamera(MQTTDevice):
         self.topic = f'{self.base_topic}/state'
         self.camera_topic = f'{self.base_topic}/camera'
         self.add_config_option("topic", self.camera_topic)
-        self.add_config_option("image_encoding", "b64")
+        #self.add_config_option("image_encoding", "b64")
     
     def publish_image(self, image):
         self._client.publish(self.camera_topic, image)

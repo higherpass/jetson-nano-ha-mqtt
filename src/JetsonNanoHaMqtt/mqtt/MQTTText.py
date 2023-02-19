@@ -24,5 +24,5 @@ class MQTTText(MQTTDevice):
     def initialize(self):
         self.cmd_topic = f'{self.base_topic}/text/cmd'
         self.state_topic = f'{self.base_topic}/text/state'
-        self.add_config_option("mode", "text")
-
+        self.add_config_option("command_topic", self.cmd_topic)
+        self.add_config_option("state_topic", self.state_topic)

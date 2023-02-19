@@ -19,7 +19,7 @@ The jetson_stats and paho-mqtt packages are leveraged to provide the Jetson hard
 * [jetson_stats](https://github.com/rbonghi/jetson_stats)
 * [paho-mqtt](https://pypi.org/project/paho-mqtt/)
 * [homeassistant-mqtt-binding](https://gitlab.com/anphi/homeassistant-mqtt-binding)
-* [opencv-python](https://pypi.org/project/opencv-python/)
+* [Pillow](https://pypi.org/project/Pillow/)
 
 ## Installation
 
@@ -55,18 +55,18 @@ import time
 from paho.mqtt.client import Client
 
 client = Client("testscript")
-client.connect("192.168.220.113", 1883)
+client.connect("MQTT_HOSTNAME", 1883)
 client.loop_start()
 
 with jtop() as jetson:
     ha_jetson = JetsonNanoHaMqtt('Jetson Nano', client, jetson)
     ha_jetson.initialize_device(jetson)
     ha_jetson.initialize_hardware_sensors() 
-    ha_jetson.initialize_camera(input="/dev/video0")
-    while jetson.ok():
-        ha_jetson.publish_hardware_sensors(jetson)
-        ha_jetson.publish_camera()
-        time.sleep(5)
+    ha_jetson.initialize_camera(input="/dev/video0", inference=True)
+    ha_jetson.start_hardware_sensors(jetson)
+    ha_jetson.start_camera()
+    ha_jetson.initialize_inference()
+    ha_jetson.start_inference_detnet()
 ```
 
 ## Home Assitant Devices and Sensors
@@ -93,14 +93,26 @@ The [jetson_stats](https://github.com/rbonghi/jetson_stats) package provides a m
 |Jetson Power Current|MQTT Sensor|Jetson current power consumption (mW)|
 |Jetson Power Average|MQTT Sensor|Jetson average power consumption (mW)|
 
-### MQTT Camera
+### Camera Input
 
 Create a Home Assistant MQTT Camera device from a video input.
 
 |Name|Type|Details|
 |----|----|-------|
 |Jetson Camera|MQTT Camera|Home Assistant MQTT Camera device from a video input (e.g. USB webcam) from the jetson-inference libraries|
-|Jetson Camera Motion|MQTT Binary Sensor|Motion detection from the Jetson Camera|
+|Jetson Camera Motion|MQTT Text|Detection inference from Camera image|
+|Jetson Camera Inference|MQTT Camera|Home Assistant MQTT Camera device with cropped output from the Jetson inference detectnet libraries|
+|Jetson Camera Motion Timestamp|MQTT Sensor|Timestamp of the last motion detection|
+
+### Inferences
+
+Provide inference from images sent to the Jetson via MQTT.  The inference results are published to MQTT.
+
+|Name|Type|Details|
+|----|----|-------|
+|Jetson Detection Inference|MQTT Text|Detection inference class from Camera image|
+|Jetson Detection Inference Camera|MQTT Camera|Home Assistant MQTT Camera device with output from the Jetson inference detectnet libraries|
+
 
 ## TODO
 
@@ -124,3 +136,5 @@ Create a Home Assistant MQTT Camera device from a video input.
 * Default executable to run
 * Command line arguments
 * MQTT Authentication
+* Enhance camera inference setup
+  * Add a MQTT switch to enable/disable the inference camera

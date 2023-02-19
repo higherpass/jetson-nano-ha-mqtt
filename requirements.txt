@@ -4,3 +4,4 @@ jetson-stats==4.1.4
 paho-mqtt==1.5.1
 pkg-resources==0.0.0
 smbus2==0.4.2
+Pillow==9.0.1
