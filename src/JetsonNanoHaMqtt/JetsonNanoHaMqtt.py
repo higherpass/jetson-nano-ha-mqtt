@@ -336,7 +336,7 @@ class JetsonNanoHaMqtt:
         img_bytes = BytesIO(msg.payload)
         img = Image.open(img_bytes)
         cuda_img = cudaFromNumpy(asarray(img))
-        detections = self._detnet_inference.Detect(cuda_img, overlay="labels,conf")
+        detections = self._detnet_inference.Detect(cuda_img, overlay="lines,labels,conf")
         out_np = cudaToNumpy(cuda_img)
         cudaDeviceSynchronize()
         out_img = Image.fromarray(out_np)
@@ -346,12 +346,15 @@ class JetsonNanoHaMqtt:
         # print the detections
         print("detected {:d} objects in image".format(len(detections)))
 
-        for detection in detections:
-            print(detection)
-            print(self._detnet_inference.GetClassDesc(detection.ClassID))
+        if len(detections) > 0:
+            for detection in detections:
+                print(detection)
+                print(self._detnet_inference.GetClassDesc(detection.ClassID))
 
-        self.detnet.publish_state(self._detnet_inference.GetClassDesc(detections[0].ClassID))
-        self.detnet_camera.publish_image(out_img)
+            self.detnet.publish_state(self._detnet_inference.GetClassDesc(detections[0].ClassID))
+            self.detnet_camera.publish_image(out_img)
+        else:
+            self.detnet.publish_state("None")
         del out_img
         del cuda_img
         del img
