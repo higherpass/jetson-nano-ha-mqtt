@@ -27,7 +27,7 @@ The jetson_stats and paho-mqtt packages are leveraged to provide the Jetson hard
 
 The python module should be installed in the environment where the [jetson-inference](https://github.com/dusty-nv/jetson-inference) libraries are installed.  The jetson-inference libraries are required to run the inferences.  
 
-It's easier to build the python package on the Jetson Nano host OS then copied into the Docker container and installed.
+It's easier to build the python package on the Jetson Nano host OS then copy into the Docker container and install.
 
 ```bash
 git clone https://github.com/higherpass/jetson-nano-ha-mqtt.git
