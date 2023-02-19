@@ -263,7 +263,7 @@ class JetsonNanoHaMqtt:
                 out_img = img_byte_arr.getvalue()
                 self.camera_inference.publish_image(out_img)
                 del snapshot
-
+        cudaDeviceSynchronize()
         out_np = cudaToNumpy(img)
         out_img = Image.fromarray(out_np)
         img_byte_arr = BytesIO()
