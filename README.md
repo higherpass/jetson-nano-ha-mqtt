@@ -1,6 +1,6 @@
 # Jetson Nano Home Asisstant MQTT Device
 
-Turn a Nvidia Jetson Nano into a MQTT Device in Home Assistant.
+Turn a Nvidia Jetson Nano into a MQTT Device in Home Assistant.  This is an early stage project.  See the Limitations, Known Issues, and TODO sections for more details.
 
 ## Prerequisites
 
@@ -47,13 +47,14 @@ The Docker container will be the easiest way to get started once it's built.
 The Python module can be used to create a custom script to publish the Jetson hardware sensors to MQTT.
 
 ```python
+#!/usr/bin/env python3
+
 from JetsonNanoHaMqtt import JetsonNanoHaMqtt
 from jtop import jtop
-
-import time
-
+from jetson.inference import detectNet, imageNet, poseNet
 from paho.mqtt.client import Client
 
+# Setup MQTT client
 client = Client("testscript")
 client.connect("MQTT_HOSTNAME", 1883)
 client.loop_start()
@@ -62,12 +63,19 @@ with jtop() as jetson:
     ha_jetson = JetsonNanoHaMqtt('Jetson Nano', client, jetson)
     ha_jetson.initialize_device(jetson)
     ha_jetson.initialize_hardware_sensors() 
-    ha_jetson.initialize_camera(input="/dev/video0", inference=True)
-    ha_jetson.start_hardware_sensors(jetson)
-    ha_jetson.start_camera()
-    ha_jetson.initialize_inference()
-    ha_jetson.start_inference_detnet()
-    ha_jetson.start_inference_imgnet()
+    ha_jetson.initialize_camera("Jetson Camera", client, input="/dev/video0", 
+                                inference=True, inference_network="ssd-mobilenet-v2", 
+                                inference_threshold=0.5)
+    ha_jetson.initialize_camera("RTSP Camera", client, input="rtsp://LOGIN:PASSWORD@RTSP_HOSTNAME:RTSP_PORT/STREAM_NAME", 
+                                inference=True, inference_network="pednet", 
+                                inference_threshold=0.5)
+    ha_jetson.initialize_inference("detectNet", client, detectNet, 
+                                   network="ssd-mobilenet-v2")
+    ha_jetson.initialize_inference("imageNet", client, imageNet, 
+                                   network="googlenet")
+    ha_jetson.initialize_inference("poseNet", client, poseNet, 
+                                   network="resnet18-body")
+    ha_jetson.start()
 ```
 
 ## Home Assitant Devices and Sensors
@@ -101,24 +109,59 @@ Create a Home Assistant MQTT Camera device from a video input.
 |Name|Type|Details|
 |----|----|-------|
 |Jetson Camera|MQTT Camera|Home Assistant MQTT Camera device from a video input (e.g. USB webcam) from the jetson-inference libraries|
-|Jetson Camera Motion|MQTT Text|Detection inference from Camera image|
-|Jetson Camera Inference|MQTT Camera|Home Assistant MQTT Camera device with cropped output from the Jetson inference detectnet libraries|
-|Jetson Camera Motion Timestamp|MQTT Sensor|Timestamp of the last motion detection|
+|Jetson Camera Inference Label|MQTT Text|Detection inference from Camera image|
+|Jetson Camera Inference Output|MQTT Camera|Home Assistant MQTT Camera device with cropped output from the Jetson inference detectnet libraries|
+|Jetson Camera Inference Timestamp|MQTT Sensor|Timestamp of the last detection|
+
+Multiple cameras are supported.  Initializing the camera will create the MQTT Camera device, a MQTT Text device for the inference label, a MQTT Camera device for the inference output, and a MQTT Sensor device for the inference timestamp.
+
+```python
+ha_jetson.initialize_camera("CAMERA_NAME", client, input="/dev/video0", 
+                            inference=True, inference_network="ssd-mobilenet-v2", 
+                            inference_threshold=0.5)
+``` 
+
+When initializing the camera, the following parameters are available:
+* `CAMERA_NAME` - The name of the camera.  This will be used to create the MQTT Camera device. (Required)
+* `client` - The MQTT client to use. (Required)
+* `input` - The input to use.  This can be a video device (e.g. /dev/video0) or an RTSP stream (e.g. rtsp://LOGIN:PASSWORD@RTSP_HOSTNAME:RTSP_PORT/STREAM_NAME). (Required)
+* `inference` - Whether to perform inference on the camera input. (Optional, default: False)
+* `inference_network` - The inference network to use.  
+* `inference_threshold` - The inference threshold to use. (Optional, default: 0.5)
 
 ### Inferences
 
 Provide inference from images sent to the Jetson via MQTT.  The inference results are published to MQTT.  These leverage the [jetson-inference](https://github.com/dusty-nv/jetson-inference) libraries inference interfaces.
 
-The Jetson Detection Inference performs object detection on the image provided via MQTT.  The first detection is published to MQTT.  The Jetson Detection Inference Camera renders the image with the detection bounding box of all detections.
-
-The Jetson Image Inference performs image classification on the image provided via MQTT.  The classification is published to MQTT.
+**Currently only detectNet, imageNet, and poseNet are supported.**  
 
 |Name|Type|Details|
 |----|----|-------|
-|Jetson Detection Inference|MQTT Text|Detection inference class from Camera image|
-|Jetson Detection Inference Camera|MQTT Camera|Home Assistant MQTT Camera device with output from the Jetson inference detectnet libraries|
-|Jetson Image Inference|MQTT Text|Image inference class from image sent to MQTT command topic|
+|Jetson Inference Camera|MQTT Camera|Home Assistant MQTT Camera device with output from the Jetson inference|
+|Jetson Image Inference Label|MQTT Text|Image inference from image sent to MQTT command topic|
 
+Multiple inferences are supported.  Initializing the inference will create the MQTT Camera device and a MQTT Text device for the inference label.
+
+```python
+ha_jetson.initialize_inference("INFERENCE_NAME", client, INFERENCE_NETWORK, 
+                               network="ssd-mobilenet-v2")
+``` 
+
+When initializing the inference, the following parameters are available:
+* `INFERENCE_NAME` - The name of the inference.  This will be used to create the MQTT Camera device. (Required)
+* `client` - The MQTT client to use. (Required)
+* `INFERENCE_NETWORK` - The inference class to use.  This can be detectNet, imageNet, or poseNet. (Required)
+* `network` - The inference network to use.
+
+## Limitations
+
+* Currently only detectNet, imageNet, and poseNet are supported.  Other inferences may be added in the future.
+* Configuring the inference network is currently limited to the network name.
+* No configuration of output image.
+
+## Known Issues
+
+* Attempting to run too many inferences at the same time may cause the Jetson to crash, hang, or invoke the OOM Killer.
 
 ## TODO
 
@@ -127,11 +170,10 @@ The Jetson Image Inference performs image classification on the image provided v
 * Docker container
 * Add Inferences
   * SegNet
-  * Each inference should have a MQTT camera to render the image
-  * Each inference should have a MQTT text sensor to display the results
+  * depthNet
 * Add more sensors
-* Add a MQTT switch to enable/disable the camera
-* Add a MQTT switch to enable/disable the camera motion sensor
+* Add a MQTT switch to enable/disable the cameras
+* Add a MQTT switch to enable/disable the camera inferences
 * Add a MQTT switch to enable/disable the inferences
 * Add a MQTT button to shutdown the Jetson
 * Add a MQTT button to reboot the Jetson
@@ -141,3 +183,10 @@ The Jetson Image Inference performs image classification on the image provided v
 * MQTT Authentication
 * Enhance camera inference setup
   * Add a MQTT switch to enable/disable the inference camera
+* Use Inference class inside the camera class
+* Configurable output image
+* Add filtering of inference responses
+
+## Disclaimer
+
+No warranty is expressed or implied.  Use at your own risk.  I am not responsible for any damage or loss of data or anything else.
